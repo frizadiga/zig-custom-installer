@@ -2,17 +2,9 @@
 # Desc: install latest zig
 # Alias: zig-install
 
-# build() {
-#   mkdir build
-#   cd build
-#   cmake ..
-#   make install
-# }
+echo "zig-install"
 
-echo -e "zig-install"
-
-_canonical_pwd=$(pwd)
-zig_install_dir="$HOME/Documents/zig/HEAD"
+zig_install_dir="$ZIG_HOME"
 
 # if not exist then create
 if [ ! -d "$zig_install_dir" ]; then
@@ -31,24 +23,38 @@ else
   exit 0
 fi
 
-_download_data=$(curl https://ziglang.org/download/index.json)
-# _download_link=$(echo $_download_data | jq -r ".master.src.tarball")
-_download_link=$(echo $_download_data | jq -r '.master."aarch64-macos".tarball')
-# _download_link=$(echo $_download_data | jq -r '.master')
+_download_data=$(curl -s https://ziglang.org/download/index.json)
 
-echo ${_download_link}
-# curl -sL "${_download_link}" | tar -xz -C .
-curl -sL "${_download_link}" | tar -xz
+# map `uname -m` to Zig arch name
+case $(uname -m) in
+  aarch64|arm64)       _zig_arch="aarch64" ;;
+  x86_64|amd64)        _zig_arch="x86_64" ;;
+  i686|i386|x86)       _zig_arch="x86" ;;
+  armv7l|armv6l|arm)   _zig_arch="arm" ;;
+  riscv64)              _zig_arch="riscv64" ;;
+  ppc64le|powerpc64le)  _zig_arch="powerpc64le" ;;
+  loongarch64)          _zig_arch="loongarch64" ;;
+  s390x)                _zig_arch="s390x" ;;
+  *)                    _zig_arch="$(uname -m)" ;;
+esac
 
-_dl_dirname=$(ls) 
+# map `uname -s` to Zig OS name
+case $(uname -s) in
+  Linux)                _zig_os="linux" ;;
+  Darwin)               _zig_os="macos" ;;
+  FreeBSD)              _zig_os="freebsd" ;;
+  NetBSD)               _zig_os="netbsd" ;;
+  OpenBSD)              _zig_os="openbsd" ;;
+  MINGW*|MSYS*|CYGWIN*) _zig_os="windows" ;;
+  *)                    _zig_os="$(uname -s | tr '[:upper:]' '[:lower:]')" ;;
+esac
 
-echo "download_dirname: $_dl_dirname"
+_zig_key="${_zig_arch}-${_zig_os}"
 
-cd $_dl_dirname
-mv * ../
-# build
-cd .. 
-rm -rf "./$_dl_dirname"
+# try binary download; fall back to source tarball
+_download_link=$(echo $_download_data | jq -r ".master.\"${_zig_key}\".tarball // .master.src.tarball")
 
-# restore user canonical pwd
-cd $_canonical_pwd
+echo "download link: ${_download_link}"
+curl -sL "${_download_link}" | tar -xJ --strip-components=1 && echo "downloaded" || { echo "failed to download"; exit 1; }
+
+echo "zig installed to ${ZIG_HOME}"
